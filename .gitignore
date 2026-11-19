@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+
+# The kit is unpacked beside the entry for makefun check, never shipped
+gta6-trophy-rarity-forecast-01-kit/
