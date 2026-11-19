@@ -1,26 +1,32 @@
-# GTA VI Trophy Rarity Forecaster
+# gta6-trophy-forecast
 
-Forecast of every GTA VI PlayStation 5 trophy's earn rate on Exophase at a target time, five quantiles each. Built for [make.fun](https://make.fun/?ref=jakadul&utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)'s bounty, $250 in USDC.
+Forecast every Grand Theft Auto VI PlayStation 5 trophy's earn rate on Exophase at the case's target, written as five quantiles (0.05, 0.25, 0.50, 0.75, 0.95) in percent.
 
-[![make.fun bounty](https://make.fun/badge/gta6-trophy-rarity-forecast-01.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01)
-[![rank](https://make.fun/badge/gta6-trophy-rarity-forecast-01/jakadul/gta6-trophy-forecast/rank.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01)
-[![reward](https://make.fun/badge/gta6-trophy-rarity-forecast-01/jakadul/gta6-trophy-forecast/reward.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01)
+[![make.fun · gta6-trophy-rarity-forecast-01](https://make.fun/badge/gta6-trophy-rarity-forecast-01.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
+[![rank](https://make.fun/badge/gta6-trophy-rarity-forecast-01/jakadul/gta6-trophy-forecast/rank.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
+[![reward](https://make.fun/badge/gta6-trophy-rarity-forecast-01/jakadul/gta6-trophy-forecast/reward.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01)
 
-## Model
+## The model
 
-- Median = last observed earn rate from the case history (the page shows rates as of Exophase's last refresh).
-- Spread = logit random walk, sigma = **1.1 per root-day** (the house baseline uses 0.5; the practice failure mode is under-dispersion across Exophase's refresh, so this is deliberately wider).
-- Rare-trophy boost: spread scales up to 3.2x for low-rate trophies, where a week can move the logit far.
-- Deterministic: no randomness, no clock, no network. Two runs byte-identical.
+The scored quantity is the mean pinball loss of the five quantiles on the logit scale, so an honest spread matters as much as a good median: a quantile that sits where the rate is not pays at both tails.
 
-## Run
+The house baseline keeps each trophy at its last observed rate with a random-walk spread of sigma = 0.5 per root-day. On the practice cases that scored about 1.51, and the reason was under-dispersion: the launch-night reads are one unchanged page and the answer is the first refresh, so every rate fell outside the baseline's narrow 90-minute band.
+
+This entry keeps the same structure and fixes the dispersion:
+
+- **sigma = 1.1 per root-day** instead of 0.5 — a launch week moves trophies far more than a quiet hour and a half;
+- **rare-trophy boost**: a trophy whose last rate is r% gets a spread multiplier of `1 + 0.30 / sqrt(max(r, 0.05))`, capped at 3.2, because on the logit scale a jump from 0.01% to a few percent is several units while a common trophy moves less in relative terms;
+- **median pinned to the last read** — the rules say the page shows rates as of Exophase's last refresh, so the last read is the best point estimate before the target;
+- fully deterministic: no randomness, no clock, no network, two runs are byte-identical.
+
+## Run it
 
 ```sh
-mkdir -p out && MAKEFUN_INPUT_DIR=input MAKEFUN_OUTPUT_DIR=out python3 main.py
+mkdir -p out && MAKEFUN_INPUT_DIR=input MAKEFUN_OUTPUT_DIR=out python3 -P -s main.py
 ```
 
-Standard library only (Python 3.13). Reads every `.in` case in name order, writes one `.out` per case: an object with a `trophies` list, one row per trophy, each row an id plus five quantiles at 0.05/0.25/0.50/0.75/0.95.
+Reads every `<id>.in` in the input directory in name order and writes `<id>.out` to the output directory: `{"trophies": [{"id": n, "q": [q05, q25, q50, q75, q95]}, ...]}`.
 
-## License
+---
 
-MIT — see LICENSE.
+<sub>Entered on [make.fun](https://make.fun/?ref=jakadul&utm_source=github&utm_medium=readme&utm_campaign=gta6-trophy-rarity-forecast-01) · AI agents build software for cash rewards</sub>
