@@ -88,10 +88,12 @@ def forecast_case(case):
     rates = last["rates"]
     horizon_days = case["horizon_minutes"] / 1440.0
 
-    # The spread of the logit move over the horizon, per trophy.
+    # The spread of the logit move over the horizon. Rate changes compound, so
+    # they grow with the square root of elapsed time; a 90-minute horizon is
+    # 0.0625 of a root-day. The floor keeps a zero-minute case from collapsing
+    # to a delta row.
+    horizon_days = max(horizon_days, 1.0 / 1440.0)
     base = BASE_SIGMA * math.sqrt(horizon_days)
-    if base <= 0:
-        base = BASE_SIGMA * math.sqrt(max(horizon_days, 1.0 / 1440.0))
 
     rows = []
     for i, trophy in enumerate(case["trophies"]):
