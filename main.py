@@ -70,6 +70,13 @@ def sigmoid(lg):
 
 
 def round4(x):
+    """Round half-up to 4 decimals.
+
+    Python's round() is banker's rounding, so round(0.00005, 4) is 0.0 and
+    round(0.00015, 4) is 0.0002: the same distance rounds two ways depending
+    on the digit before it. The board scores exact values, so the forecast
+    should not inherit that coin flip.
+    """
     scaled = x * 10000.0
     whole = math.floor(scaled)
     if scaled - whole >= 0.5:
