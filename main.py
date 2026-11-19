@@ -32,16 +32,17 @@ The program reads every *.in in the input directory in name order and writes
 import json
 import math
 import os
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 INPUT_DIR = Path(os.environ.get("MAKEFUN_INPUT_DIR", "/input"))
 OUTPUT_DIR = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
 
 LEVELS = [0.05, 0.25, 0.5, 0.75, 0.95]
-Z = [-1.645, -0.674, 0.0, 0.674, 1.645]
+
+# Standard normal quantiles for LEVELS, in that order. The pinball loss is
+# minimised at the true quantile, so the five numbers have to sit at these
+# exact probabilities; 1.645 is the two-sided 90% point, 0.674 the quartiles.
+Z = [-1.6449, -0.6745, 0.0, 0.6745, 1.6449]
 
 # Random-walk logit spread per root-day. The house baseline uses 0.5; a launch
 # week moves trophies far more than that, and the practice failure is exactly
@@ -61,12 +62,38 @@ def clamp(x):
 
 
 def logit(pct):
+    """Percent to log-odds, clamped to the page's 0.01..99.99 range."""
     p = clamp(pct)
     return math.log(p / (100.0 - p))
 
 
 def sigmoid(lg):
+    """Log-odds back to a percent."""
     return 100.0 / (1.0 + math.exp(-lg))
+
+
+def spread_for(med, base):
+    """Logit sd for one trophy over the case's horizon.
+
+    Rare trophies move further on the logit scale than common ones: 0.01% to
+    1% is 4.6 logit units, 50% to 60% is 0.4. The boost scales with
+    1/sqrt(rate) and is capped so a 0.01% bronze does not get an absurd band.
+    """
+    return base * min(RARE_CAP, 1.0 + RARE_BOOST / math.sqrt(max(med, 0.05)))
+
+
+def ordered(qs):
+    """Clamp to 0..100 and make the row non-decreasing.
+
+    Rounding near the ends can invert a row (99.99 before 99.9917), and an
+    inverted row invalidates the whole case, so the order is enforced after
+    rounding rather than before.
+    """
+    qs = [min(100.0, max(0.0, float(q))) for q in qs]
+    for k in range(1, len(qs)):
+        if qs[k] < qs[k - 1]:
+            qs[k] = qs[k - 1]
+    return [round(float(q), 4) for q in qs]
 
 
 def round4(x):
@@ -112,25 +139,23 @@ def forecast_case(case):
         else:
             med = clamp(rate)
 
-        sigma = base * min(RARE_CAP, 1.0 + RARE_BOOST / math.sqrt(max(med, 0.05)))
-        lg = logit(med)
-        qs = [round4(sigmoid(lg + z * sigma)) for z in Z]
-        # Quantiles must be non-decreasing. Rounding near 0% or 100% can invert
-        # them (99.99 vs 99.9917), and an inverted row makes the case invalid, so
-        # enforce the order after rounding rather than before.
-        qs = [min(100.0, max(0.0, float(q))) for q in qs]
-        for k in range(1, len(qs)):
-            if qs[k] < qs[k - 1]:
-                qs[k] = qs[k - 1]
-        # Keep every quantile a plain float: the schema wants numbers, and int/float
-        # mixing is fine for JSON but makes two runs' bytes differ on platforms that
-        # serialise 100.0 as 100. Round to 4 decimals and leave them as floats.
-        qs = [round(float(q), 4) for q in qs]
+        sigma = spread_for(med, base)
+        med_lg = logit(med)
+        # Five quantiles: the median row is the last rate itself (z = 0), the
+        # tails walk out symmetrically on the logit scale, where the pinball
+        # loss is scored.
+        qs = ordered([round4(sigmoid(med_lg + z * sigma)) for z in Z])
         rows.append({"id": trophy["id"], "q": qs})
     return {"trophies": rows}
 
 
 def main():
+    """Write one <id>.out per case in the input directory, in name order.
+
+    The grader runs this once per case with only that case's file present, so
+    globbing the directory rather than naming cases keeps it correct for the
+    practice pair and for the single final case alike.
+    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     for path in sorted(INPUT_DIR.glob("*.in")):
         case = json.loads(path.read_text(encoding="utf-8"))
