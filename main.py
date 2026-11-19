@@ -32,6 +32,7 @@ The program reads every *.in in the input directory in name order and writes
 import json
 import math
 import os
+import statistics
 from pathlib import Path
 
 INPUT_DIR = Path(os.environ.get("MAKEFUN_INPUT_DIR", "/input"))
@@ -41,8 +42,11 @@ LEVELS = [0.05, 0.25, 0.5, 0.75, 0.95]
 
 # Standard normal quantiles for LEVELS, in that order. The pinball loss is
 # minimised at the true quantile, so the five numbers have to sit at these
-# exact probabilities; 1.645 is the two-sided 90% point, 0.674 the quartiles.
-Z = [-1.6449, -0.6745, 0.0, 0.6745, 1.6449]
+# exact probabilities. Python's statistics.NormalDist gives them without a
+# lookup table: inv_cdf(0.5) is 0.0, inv_cdf(0.025) is -1.959964, and so on.
+# LEVELS is fixed, so the five values are computed once at import.
+NORMAL = statistics.NormalDist()
+Z = [NORMAL.inv_cdf(q) for q in LEVELS]
 
 # Random-walk logit spread per root-day. The house baseline uses 0.5; a launch
 # week moves trophies far more than that, and the practice failure is exactly
